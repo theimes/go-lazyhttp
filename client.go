@@ -49,7 +49,7 @@ func (f AuthenticatorFunc) Authenticate(r *http.Request) error {
 }
 
 // Option implements the functional options pattern for the client
-type Option func(*Client) *Client
+type Option func(*client) *client
 
 // PreRequestHook is a function that is called before the request is made. It
 // can alter the request before the request is made.
@@ -63,7 +63,7 @@ type Config struct {
 	MaxRateLimiterWaitTime time.Duration
 }
 
-type Client struct {
+type client struct {
 	conf          Config
 	httpClient    *http.Client       // the underlying http client, this can be configured
 	rateLimiter   *rate.Limiter      // the rate limiter, this can be configured
@@ -74,49 +74,49 @@ type Client struct {
 }
 
 func WithHttpClient(httpClient *http.Client) Option {
-	return func(c *Client) *Client {
+	return func(c *client) *client {
 		c.httpClient = httpClient
 		return c
 	}
 }
 
 func WithRateLimiter(rateLimiter *rate.Limiter) Option {
-	return func(c *Client) *Client {
+	return func(c *client) *client {
 		c.rateLimiter = rateLimiter
 		return c
 	}
 }
 
 func WithPreRequestHooks(hook ...PreRequestHook) Option {
-	return func(c *Client) *Client {
+	return func(c *client) *client {
 		c.preReqHooks = append(c.preReqHooks, hook...)
 		return c
 	}
 }
 
 func WithPostResponseHooks(hook ...PostResponseHook) Option {
-	return func(c *Client) *Client {
+	return func(c *client) *client {
 		c.postRespHooks = append(c.postRespHooks, hook...)
 		return c
 	}
 }
 
 func WithAuthenticator(authenticator Authenticator) Option {
-	return func(c *Client) *Client {
+	return func(c *client) *client {
 		c.authenticator = authenticator
 		return c
 	}
 }
 
 func WithMaxRateLimiterWaitTime(d time.Duration) Option {
-	return func(c *Client) *Client {
+	return func(c *client) *client {
 		c.conf.MaxRateLimiterWaitTime = d
 		return c
 	}
 }
 
 func WithHost(host *url.URL) Option {
-	return func(c *Client) *Client {
+	return func(c *client) *client {
 		c.host = host
 		return c
 	}
@@ -124,11 +124,11 @@ func WithHost(host *url.URL) Option {
 
 // NewClient creates a new client with the given options. If no options are
 // given sensible defaults are selected.
-func NewClient(opts ...Option) *Client {
+func NewClient(opts ...Option) *client {
 	httpClient := http.DefaultClient      // go's default http client is also our default
 	httpClient.Timeout = 30 * time.Second // this is our sensible default for timeouts
 
-	c := &Client{
+	c := &client{
 		conf: Config{
 			MaxRateLimiterWaitTime: 60 * time.Second,
 		},
@@ -147,7 +147,7 @@ func NewClient(opts ...Option) *Client {
 	return c
 }
 
-func (c *Client) Do(r *http.Request) (*http.Response, error) {
+func (c *client) Do(r *http.Request) (*http.Response, error) {
 	// first the get the context from the request so we operate on the same
 	ctx := r.Context()
 
@@ -179,12 +179,14 @@ func (c *Client) Do(r *http.Request) (*http.Response, error) {
 	}
 
 	// run all the pre request hooks
-	for _, hook := range c.preReqHooks {
-		err := hook(r)
-		if err != nil {
-			return &http.Response{}, RequestError{
-				Err:     fmt.Errorf("error running pre request hook: %w", err),
-				Request: r,
+	if c.preReqHooks == nil {
+		for _, hook := range c.preReqHooks {
+			err := hook(r)
+			if err != nil {
+				return &http.Response{}, RequestError{
+					Err:     fmt.Errorf("error running pre request hook: %w", err),
+					Request: r,
+				}
 			}
 		}
 	}
@@ -216,12 +218,14 @@ func (c *Client) Do(r *http.Request) (*http.Response, error) {
 	}
 
 	// run all the post response hooks
-	for _, hook := range c.postRespHooks {
-		err := hook(res)
-		if err != nil {
-			return res, ResponseError{
-				Err:      fmt.Errorf("error running post response hook: %w", err),
-				Response: res,
+	if c.postRespHooks == nil {
+		for _, hook := range c.postRespHooks {
+			err := hook(res)
+			if err != nil {
+				return res, ResponseError{
+					Err:      fmt.Errorf("error running post response hook: %w", err),
+					Response: res,
+				}
 			}
 		}
 	}

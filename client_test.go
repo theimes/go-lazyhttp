@@ -21,10 +21,6 @@ func TestBasicRequest(t *testing.T) {
 	ctx, cancel := context.WithDeadline(context.Background(), done)
 	defer cancel()
 
-	type testResponse struct {
-		Value string
-	}
-
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, err := w.Write([]byte(`{"value": "test"}`))
@@ -51,7 +47,12 @@ func TestBasicRequest(t *testing.T) {
 		t.Errorf("unexpected error: %s", err)
 	}
 
-	tr, err := lazyhttp.DecodeToJson[testResponse](res.Body)
+	type testResponse struct {
+		Value string
+	}
+
+	var tr testResponse
+	err = lazyhttp.DecodeJson[testResponse](res.Body, &tr)
 	if err != nil {
 		t.Errorf("unexpected error: %s", err)
 	}
@@ -72,10 +73,6 @@ func TestWithHost(t *testing.T) {
 
 	ctx, cancel := context.WithDeadline(context.Background(), done)
 	defer cancel()
-
-	type testResponse struct {
-		Value string
-	}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/some/path/", func(w http.ResponseWriter, r *http.Request) {
@@ -109,7 +106,12 @@ func TestWithHost(t *testing.T) {
 		return
 	}
 
-	tr, err := lazyhttp.DecodeToJson[testResponse](res.Body)
+	type testResponse struct {
+		Value string
+	}
+
+	var tr testResponse
+	err = lazyhttp.DecodeJson[testResponse](res.Body, &tr)
 	if err != nil {
 		t.Errorf("unexpected error: %s", err)
 		return
