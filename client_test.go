@@ -30,6 +30,7 @@ func TestBasicRequest(t *testing.T) {
 	}))
 	defer srv.Close()
 
+	// test code starts here
 	client := lazyhttp.NewClient()
 
 	addr, err := url.Parse(srv.URL)
@@ -52,7 +53,7 @@ func TestBasicRequest(t *testing.T) {
 	}
 
 	var tr testResponse
-	err = lazyhttp.DecodeJson[testResponse](res.Body, &tr)
+	err = res.DecodeJson(res.Body, &tr)
 	if err != nil {
 		t.Errorf("unexpected error: %s", err)
 	}
@@ -93,6 +94,7 @@ func TestWithHost(t *testing.T) {
 		t.Errorf("unexpected error: %s", err)
 	}
 
+	// test code starts here
 	client := lazyhttp.NewClient(lazyhttp.WithHost(addr))
 
 	req, err := lazyhttp.NewRequestWithContext(ctx, http.MethodGet, "/some/path/")
@@ -111,7 +113,7 @@ func TestWithHost(t *testing.T) {
 	}
 
 	var tr testResponse
-	err = lazyhttp.DecodeJson[testResponse](res.Body, &tr)
+	err = res.DecodeJson(res.Body, &tr)
 	if err != nil {
 		t.Errorf("unexpected error: %s", err)
 		return

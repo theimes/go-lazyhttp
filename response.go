@@ -4,7 +4,20 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 )
+
+type Response struct {
+	*http.Response
+}
+
+func (r *Response) DecodeBytes() ([]byte, error) {
+	return DecodeBytes(r.Body)
+}
+
+func (r *Response) DecodeJson(rc io.ReadCloser, out any) error {
+	return DecodeJson(r.Body, out)
+}
 
 // DecodeBytes reads from the given reader and returns the content as a []byte.
 // To limit the number of bytes read, use the io.LimitReader type to wrap the
@@ -25,12 +38,12 @@ func DecodeBytes(rc io.ReadCloser) ([]byte, error) {
 // pointer. The reader is closed after reading. This function does not limit the
 // number of bytes read from the reader. To limit the number of bytes read, use
 // the io.LimitReader type to wrap the reader.
-func DecodeJson[T any](r io.ReadCloser, out *T) error {
+func DecodeJson(rc io.ReadCloser, out any) error {
 	// always close reader after reading
-	defer r.Close()
+	defer rc.Close()
 
 	// read all from the given reader
-	b, err := io.ReadAll(r)
+	b, err := io.ReadAll(rc)
 	if err != nil {
 		return fmt.Errorf("error reading response body: %w", err)
 	}

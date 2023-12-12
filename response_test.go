@@ -36,17 +36,17 @@ func TestDecodeJson(t *testing.T) {
 		"foo": "bar"
 	}`
 
-	type Res struct {
+	type res struct {
 		Foo string `json:"foo"`
 	}
 
-	var res Res
-	err := lazyhttp.DecodeJson(io.NopCloser(strings.NewReader(d)), &res)
+	var tmp res
+	err := lazyhttp.DecodeJson(io.NopCloser(strings.NewReader(d)), &tmp)
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
 
-	t.Logf("result: %#v", res)
+	t.Logf("result: %#v", tmp)
 }
 
 func TestDecodeJsonLimit(t *testing.T) {
@@ -54,17 +54,17 @@ func TestDecodeJsonLimit(t *testing.T) {
 		"foo": "bar"
 	}`
 
-	type Res struct {
+	type res struct {
 		Foo string `json:"foo"`
 	}
 
-	var res Res
-	err := lazyhttp.DecodeJson(io.NopCloser(io.LimitReader(strings.NewReader(d), 1*KB)), &res)
+	var tmp res
+	err := lazyhttp.DecodeJson(io.NopCloser(io.LimitReader(strings.NewReader(d), 1*KB)), &tmp)
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
 
-	t.Logf("result: %#v", res)
+	t.Logf("result: %#v", tmp)
 }
 
 func TestDecodeJsonLimitTooLong(t *testing.T) {
@@ -72,15 +72,15 @@ func TestDecodeJsonLimitTooLong(t *testing.T) {
 		"foo": "bar"
 	}`
 
-	type Res struct {
+	type res struct {
 		Foo string `json:"foo"`
 	}
 
-	var res Res
-	err := lazyhttp.DecodeJson(io.NopCloser(io.LimitReader(strings.NewReader(d), 1*B)), &res)
+	var tmp res
+	err := lazyhttp.DecodeJson(io.NopCloser(io.LimitReader(strings.NewReader(d), 1*B)), &tmp)
 	if err != nil {
-		if res != (Res{}) {
-			t.Errorf("expected empty result but got: %#v", res)
+		if tmp != (res{}) {
+			t.Errorf("expected empty result but got: %#v", tmp)
 		}
 	}
 }
