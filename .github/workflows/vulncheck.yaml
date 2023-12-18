@@ -1,3 +1,5 @@
+name: Check for vulnerabilities
+
 on:
   schedule:
     - cron: '25 8 * * *'
