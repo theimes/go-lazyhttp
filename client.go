@@ -262,20 +262,23 @@ func (c *client) Do(req *http.Request) (*http.Response, error) {
 			// wait for the backoff deadline
 			timer := time.NewTimer(t)
 
-		loop:
-			for {
-				select {
-				case <-ctx.Done():
-					return res, fmt.Errorf("request context done")
-				case <-timer.C:
-					res, err = c.execute(req)
-					if err != nil {
-						return res, fmt.Errorf("error executing request: %w", err)
+			// run a func that returns as soon as either the context is done or
+			// we received a response from the request.
+			res, err = func(res *http.Response) (*http.Response, error) {
+				for {
+					select {
+					case <-ctx.Done():
+						return res, fmt.Errorf("request context done")
+					case <-timer.C:
+						res, err = c.execute(req)
+						if err != nil {
+							return res, fmt.Errorf("error executing request: %w", err)
+						}
+						timer.Stop()
+						return res, nil
 					}
-					timer.Stop()
-					break loop
 				}
-			}
+			}(res)
 		}
 	}
 
