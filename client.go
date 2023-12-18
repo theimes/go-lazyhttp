@@ -147,7 +147,7 @@ func NewClient(opts ...Option) *client {
 	return c
 }
 
-func (c *client) Do(r *http.Request) (*Response, error) {
+func (c *client) Do(r *http.Request) (*http.Response, error) {
 	// first the get the context from the request so we operate on the same
 	ctx := r.Context()
 
@@ -183,7 +183,7 @@ func (c *client) Do(r *http.Request) (*Response, error) {
 		for _, hook := range c.preReqHooks {
 			err := hook(r)
 			if err != nil {
-				return &Response{}, RequestError{
+				return &http.Response{}, RequestError{
 					Err:     fmt.Errorf("error running pre request hook: %w", err),
 					Request: r,
 				}
@@ -222,7 +222,7 @@ func (c *client) Do(r *http.Request) (*Response, error) {
 		for _, hook := range c.postRespHooks {
 			err := hook(res)
 			if err != nil {
-				return &Response{Response: res}, ResponseError{
+				return res, ResponseError{
 					Err:      fmt.Errorf("error running post response hook: %w", err),
 					Response: res,
 				}
@@ -230,7 +230,5 @@ func (c *client) Do(r *http.Request) (*Response, error) {
 		}
 	}
 
-	return &Response{
-		Response: res,
-	}, nil
+	return res, nil
 }

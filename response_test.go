@@ -2,7 +2,11 @@ package lazyhttp_test
 
 import (
 	"bytes"
+	"context"
 	"io"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 
@@ -82,5 +86,47 @@ func TestDecodeJsonLimitTooLong(t *testing.T) {
 		if tmp != (res{}) {
 			t.Errorf("expected empty result but got: %#v", tmp)
 		}
+	}
+}
+
+func TestDecodeJsonFromResponse(t *testing.T) {
+	type testRes struct {
+		Foo string `json:"foo"`
+	}
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"foo": "bar"}`))
+	})
+
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	addr, err := url.Parse(srv.URL)
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+		return
+	}
+
+	c := lazyhttp.NewClient(lazyhttp.WithHost(addr))
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+		return
+	}
+
+	res, err := c.Do(req)
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+		return
+	}
+
+	var resObj testRes
+	err = lazyhttp.DecodeJson(res.Body, &resObj)
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+		return
 	}
 }

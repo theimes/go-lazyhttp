@@ -4,20 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net/http"
 )
-
-type Response struct {
-	*http.Response
-}
-
-func (r *Response) DecodeBytes() ([]byte, error) {
-	return DecodeBytes(r.Body)
-}
-
-func (r *Response) DecodeJson(rc io.ReadCloser, out any) error {
-	return DecodeJson(r.Body, out)
-}
 
 // DecodeBytes reads from the given reader and returns the content as a []byte.
 // To limit the number of bytes read, use the io.LimitReader type to wrap the

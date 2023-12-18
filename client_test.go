@@ -53,7 +53,7 @@ func TestBasicRequest(t *testing.T) {
 	}
 
 	var tr testResponse
-	err = res.DecodeJson(res.Body, &tr)
+	err = lazyhttp.DecodeJson(res.Body, &tr)
 	if err != nil {
 		t.Errorf("unexpected error: %s", err)
 	}
@@ -113,7 +113,7 @@ func TestWithHost(t *testing.T) {
 	}
 
 	var tr testResponse
-	err = res.DecodeJson(res.Body, &tr)
+	err = lazyhttp.DecodeJson(res.Body, &tr)
 	if err != nil {
 		t.Errorf("unexpected error: %s", err)
 		return
