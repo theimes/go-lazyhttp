@@ -94,6 +94,13 @@ func WithRateLimiter(rateLimiter RateLimiter) Option {
 	}
 }
 
+func WithMaxRateLimiterWaitTime(d time.Duration) Option {
+	return func(c *client) *client {
+		c.conf.MaxRateLimiterWaitTime = d
+		return c
+	}
+}
+
 func WithPreRequestHooks(hook ...PreRequestHook) Option {
 	return func(c *client) *client {
 		c.preReqHooks = append(c.preReqHooks, hook...)
@@ -111,13 +118,6 @@ func WithPostResponseHooks(hook ...PostResponseHook) Option {
 func WithAuthenticator(authenticator Authenticator) Option {
 	return func(c *client) *client {
 		c.authenticator = authenticator
-		return c
-	}
-}
-
-func WithMaxRateLimiterWaitTime(d time.Duration) Option {
-	return func(c *client) *client {
-		c.conf.MaxRateLimiterWaitTime = d
 		return c
 	}
 }
@@ -208,7 +208,7 @@ func (c *client) Do(req *http.Request) (*http.Response, error) {
 	}
 
 	// run all the pre request hooks
-	if c.preReqHooks == nil {
+	if c.preReqHooks != nil {
 		for _, hook := range c.preReqHooks {
 			err := hook(req)
 			if err != nil {
@@ -283,7 +283,7 @@ func (c *client) Do(req *http.Request) (*http.Response, error) {
 	}
 
 	// run all the post response hooks
-	if c.postRespHooks == nil {
+	if c.postRespHooks != nil {
 		for _, hook := range c.postRespHooks {
 			err := hook(res)
 			if err != nil {
