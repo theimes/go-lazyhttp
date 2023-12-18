@@ -2,7 +2,8 @@ name: Run go tests
 
 on:
   push:
-    tags-ignore: ['v*']
+    tags: 
+      - '!v*'
   pull_request:
     types: ['opened', 'synchronize', 'reopened', 'ready_for_review']
 
