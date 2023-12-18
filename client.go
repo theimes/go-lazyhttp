@@ -256,7 +256,7 @@ func (c *client) Do(req *http.Request) (*http.Response, error) {
 			// a retry is still possible
 			t, ok := bo.Backoff()
 			if !ok {
-				return res, ErrMaxRetriesReached
+				return res, fmt.Errorf("error backing off from request: %w", err)
 			}
 
 			// wait for the backoff deadline
