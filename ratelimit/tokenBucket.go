@@ -23,6 +23,8 @@ type tokenBucketRateLimiter struct {
 	bucket chan struct{} // the bucket
 }
 
+// NewTokenBucketRateLimiter returns a new token bucket rate limiter. The rate
+// limiter will fill the bucket with tokens at the given tick rate.
 func NewTokenBucketRateLimiter(t time.Ticker, maxTokens int, timeout time.Duration) *tokenBucketRateLimiter {
 	if timeout == 0 {
 		timeout = time.Second * 30
@@ -57,6 +59,7 @@ func NewTokenBucketRateLimiter(t time.Ticker, maxTokens int, timeout time.Durati
 	return lim
 }
 
+// Wait blocks until a token is available or the context is done.
 func (l *tokenBucketRateLimiter) Wait(ctx context.Context) error {
 	_, ok := ctx.Deadline()
 	if !ok {

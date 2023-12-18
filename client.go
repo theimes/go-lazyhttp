@@ -27,8 +27,6 @@ import (
 	"net/http"
 	"net/url"
 	"time"
-
-	"golang.org/x/time/rate"
 )
 
 // Authenticator is an interface that can be implemented to authenticate a given
@@ -43,6 +41,10 @@ type AuthenticatorFunc func(*http.Request) error
 // Authenticate calls the Authentifactor function to implement the interface
 func (f AuthenticatorFunc) Authenticate(r *http.Request) error {
 	return f(r)
+}
+
+type RateLimiter interface {
+	Wait(ctx context.Context) error
 }
 
 // Option implements the functional options pattern for the client
@@ -67,7 +69,7 @@ type Config struct {
 type client struct {
 	conf          Config
 	httpClient    *http.Client       // the underlying http client, this can be configured
-	rateLimiter   *rate.Limiter      // the rate limiter, this can be configured
+	rateLimiter   RateLimiter        // the rate limiter, this can be configured
 	preReqHooks   []PreRequestHook   // functions that are ran before the request is made
 	retryHook     RetryHook          // function that is ran after the response is received to decide if the request should be retried
 	backoff       func() Backoff     // a function that returns a new instance of a backoff implementation
@@ -83,7 +85,7 @@ func WithHttpClient(httpClient *http.Client) Option {
 	}
 }
 
-func WithRateLimiter(rateLimiter *rate.Limiter) Option {
+func WithRateLimiter(rateLimiter RateLimiter) Option {
 	return func(c *client) *client {
 		c.rateLimiter = rateLimiter
 		return c
@@ -160,7 +162,7 @@ func NewClient(opts ...Option) *client {
 		httpClient:    httpClient,
 		rateLimiter:   nil,                                        // no default rate limiter
 		preReqHooks:   []PreRequestHook{},                         // no default pre request hooks
-		retryHook:     NoopRetryHook,                              // by default never retry anything
+		retryHook:     nil,                                        // by default never retry anything
 		backoff:       func() Backoff { return NewNoopBackoff() }, // default backoff implementation is an exponential backoff with defensive values
 		postRespHooks: []PostResponseHook{},                       // no default post response hooks
 		authenticator: nil,                                        // no default authenticator
@@ -184,19 +186,17 @@ func (c *client) Do(req *http.Request) (*http.Response, error) {
 	if c.rateLimiter != nil {
 		// if the given context has no deadline we se the default deadline from
 		// the client to protect the user from never ending waits.
-		done, ok := ctx.Deadline()
+		_, ok := req.Context().Deadline()
 		if !ok {
-			// context has no deadline, use default max wait time
-			done = time.Now().Add(c.conf.MaxRateLimiterWaitTime)
+			// wrap the request context with a deadline to provide a timeout
+			// for rate limit waits even if the user does not provide a deadline in
+			// the context.
+			var cancel context.CancelFunc
+			ctx, cancel = context.WithDeadline(req.Context(), time.Now().Add(c.conf.MaxRateLimiterWaitTime))
+			defer cancel()
 		}
 
-		// wrap the request context with a deadline to provide a timeout
-		// for rate limit waits even if the user does not provide a deadline in
-		// the context
-		ctx, cancel := context.WithDeadline(ctx, done)
-		defer cancel()
-
-		err := c.rateLimiter.WaitN(ctx, 1)
+		err := c.rateLimiter.Wait(ctx)
 		if err != nil {
 			return nil, RateLimitError{
 				Err:         err,
@@ -247,9 +247,9 @@ func (c *client) Do(req *http.Request) (*http.Response, error) {
 		bo := c.backoff()
 
 		// check if the retry hook wants to perform a retry
-		var retryRes *http.Response
-		retryRes = res // to clarify we are checking the overwritten retry here
-		for c.retryHook(retryRes) {
+		for c.retryHook(res) {
+			var err error
+
 			// want to perform a retry so check the backoff implementation if
 			// a retry is still possible
 			t, ok := bo.Backoff()
@@ -258,10 +258,16 @@ func (c *client) Do(req *http.Request) (*http.Response, error) {
 			}
 
 			// wait for the backoff deadline
-			<-time.After(t)
-			retryRes, err = c.execute(req)
-			if err != nil {
-				return res, fmt.Errorf("error executing request: %w", err)
+			for {
+				select {
+				case <-ctx.Done():
+					return res, fmt.Errorf("request context done")
+				case <-time.After(t):
+					res, err = c.execute(req)
+					if err != nil {
+						return res, fmt.Errorf("error executing request: %w", err)
+					}
+				}
 			}
 		}
 	}

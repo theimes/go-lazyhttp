@@ -125,3 +125,33 @@ func TestWithHost(t *testing.T) {
 
 	t.Logf("%#v\n", tr)
 }
+
+func TestRetryConcept(t *testing.T) {
+	type testObj struct {
+		n int
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	obj := new(testObj)
+	inc := func(obj *testObj) bool {
+		return obj.n < 100
+	}
+
+	for inc(obj) {
+		select {
+		case <-ctx.Done():
+			t.Log("context done")
+			return
+		case <-time.After(25 * time.Millisecond):
+			t.Logf("tick %d", obj.n)
+
+			updated := testObj{
+				n: obj.n + 1,
+			}
+
+			obj = &updated
+		}
+	}
+}

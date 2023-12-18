@@ -3,8 +3,6 @@ package lazyhttp
 import (
 	"fmt"
 	"net/http"
-
-	"golang.org/x/time/rate"
 )
 
 // RequestError is an error that occurs during a built up of a request. This
@@ -20,7 +18,7 @@ func (e RequestError) Error() string {
 
 type RateLimitError struct {
 	Err         error
-	RateLimiter *rate.Limiter
+	RateLimiter RateLimiter
 }
 
 func (e RateLimitError) Error() string {
