@@ -21,6 +21,10 @@
 
 package lazyhttp
 
+// TODO:
+// - add custom errors where fmt.Errof is returned
+// - see if the behavioural error pattern is useful for retries
+
 import (
 	"context"
 	"fmt"
