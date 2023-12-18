@@ -156,7 +156,7 @@ func TestRetryConcept(t *testing.T) {
 	}
 }
 
-func TestRetryHookRetry(t *testing.T) {
+func TestRetryHookMakeRetry(t *testing.T) {
 	reqCounter := 0
 	expectedTries := 5
 
@@ -176,7 +176,7 @@ func TestRetryHookRetry(t *testing.T) {
 
 	addr, err := url.Parse(srv.URL)
 	if err != nil {
-		t.Errorf("unexpected error: %s", err)
+		t.Errorf("did not expect error parsing url: %+v", err)
 		return
 	}
 
@@ -188,7 +188,7 @@ func TestRetryHookRetry(t *testing.T) {
 		}),
 		// the backoff implementation will wait 25ms between each retry and will try 5 times
 		lazyhttp.WithBackoff(func() lazyhttp.Backoff {
-			return lazyhttp.NewLimitedTriesBackoff(100*time.Millisecond, expectedTries)
+			return lazyhttp.NewLimitedTriesBackoff(250*time.Millisecond, expectedTries)
 		}),
 	)
 
@@ -197,23 +197,23 @@ func TestRetryHookRetry(t *testing.T) {
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "/", nil)
 	if err != nil {
-		t.Errorf("unexpected error: %s", err)
+		t.Errorf("did not expect error creating request: %+v", err)
 		return
 	}
 
 	res, err := client.Do(req)
 	if err != nil {
-		t.Errorf("unexpected error: %s", err)
+		t.Errorf("did not expect error making request: %+v", err)
 		return
 	}
 
 	if res.StatusCode != http.StatusOK {
-		t.Errorf("unexpected status code: %d", res.StatusCode)
+		t.Errorf("expected status code %d but got: %d", http.StatusOK, res.StatusCode)
 		return
 	}
 
 	if reqCounter != expectedTries {
-		t.Errorf("unexpected number of requests: %d", reqCounter)
+		t.Errorf("expected %d requests but got: %d", expectedTries, reqCounter)
 		return
 	}
 }
