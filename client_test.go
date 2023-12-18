@@ -155,3 +155,65 @@ func TestRetryConcept(t *testing.T) {
 		}
 	}
 }
+
+func TestRetryHookRetry(t *testing.T) {
+	reqCounter := 0
+	expectedTries := 5
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		reqCounter = reqCounter + 1
+		if reqCounter > (expectedTries - 1) {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
+		w.WriteHeader(http.StatusServiceUnavailable)
+	})
+
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	addr, err := url.Parse(srv.URL)
+	if err != nil {
+		t.Errorf("unexpected error: %s", err)
+		return
+	}
+
+	client := lazyhttp.NewClient(
+		lazyhttp.WithHost(addr),
+		// the retry hook looks for a status code of 503 and will return when found
+		lazyhttp.WithRetryHook(func(res *http.Response) bool {
+			return res.StatusCode == http.StatusServiceUnavailable
+		}),
+		// the backoff implementation will wait 25ms between each retry and will try 5 times
+		lazyhttp.WithBackoff(func() lazyhttp.Backoff {
+			return lazyhttp.NewLimitedTriesBackoff(100*time.Millisecond, expectedTries)
+		}),
+	)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "/", nil)
+	if err != nil {
+		t.Errorf("unexpected error: %s", err)
+		return
+	}
+
+	res, err := client.Do(req)
+	if err != nil {
+		t.Errorf("unexpected error: %s", err)
+		return
+	}
+
+	if res.StatusCode != http.StatusOK {
+		t.Errorf("unexpected status code: %d", res.StatusCode)
+		return
+	}
+
+	if reqCounter != expectedTries {
+		t.Errorf("unexpected number of requests: %d", reqCounter)
+		return
+	}
+}

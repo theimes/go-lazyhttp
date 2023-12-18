@@ -29,6 +29,8 @@ import (
 	"time"
 )
 
+var ErrMaxRetriesReached error = fmt.Errorf("max retries reached")
+
 // Authenticator is an interface that can be implemented to authenticate a given
 // request. If the request could not be authenticated an error is returend.
 type Authenticator interface {
@@ -254,19 +256,24 @@ func (c *client) Do(req *http.Request) (*http.Response, error) {
 			// a retry is still possible
 			t, ok := bo.Backoff()
 			if !ok {
-				return res, fmt.Errorf("max retries reached")
+				return res, ErrMaxRetriesReached
 			}
 
 			// wait for the backoff deadline
+			timer := time.NewTimer(t)
+
+		loop:
 			for {
 				select {
 				case <-ctx.Done():
 					return res, fmt.Errorf("request context done")
-				case <-time.After(t):
+				case <-timer.C:
 					res, err = c.execute(req)
 					if err != nil {
 						return res, fmt.Errorf("error executing request: %w", err)
 					}
+					timer.Stop()
+					break loop
 				}
 			}
 		}
