@@ -156,6 +156,8 @@ func TestRetryConcept(t *testing.T) {
 	}
 }
 
+// TestRetryHookMakeRetry adds a simple retry hook and a simple backoff
+// implementation. Tests if the retrie count matches what we expect.
 func TestRetryHookMakeRetry(t *testing.T) {
 	reqCounter := 0
 	expectedTries := 5
@@ -163,7 +165,7 @@ func TestRetryHookMakeRetry(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		reqCounter = reqCounter + 1
-		if reqCounter > (expectedTries - 1) {
+		if reqCounter == expectedTries {
 			w.WriteHeader(http.StatusOK)
 			return
 		}
@@ -201,6 +203,7 @@ func TestRetryHookMakeRetry(t *testing.T) {
 		return
 	}
 
+	// perform 5 requests in total until we succeed
 	res, err := client.Do(req)
 	if err != nil {
 		t.Errorf("did not expect error making request: %+v", err)
