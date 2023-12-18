@@ -19,9 +19,6 @@
 //   have a little bit more convenience and do not or not yet know the internals
 //   of the go http client.
 
-// TODO: implement a retry mechanism
-// TODO: implement unit tests
-
 package lazyhttp
 
 import (
@@ -55,6 +52,10 @@ type Option func(*client) *client
 // can alter the request before the request is made.
 type PreRequestHook func(*http.Request) error
 
+// RetryHook is a function that is called after the response is received. It
+// decides if the request should be retried or not.
+type RetryHook func(*http.Response) bool
+
 // PostResponseHook is a function that is called after the response is received.
 // It can alter the response before it is returned.
 type PostResponseHook func(*http.Response) error
@@ -68,6 +69,8 @@ type client struct {
 	httpClient    *http.Client       // the underlying http client, this can be configured
 	rateLimiter   *rate.Limiter      // the rate limiter, this can be configured
 	preReqHooks   []PreRequestHook   // functions that are ran before the request is made
+	retryHook     RetryHook          // function that is ran after the response is received to decide if the request should be retried
+	backoff       func() Backoff     // a function that returns a new instance of a backoff implementation
 	postRespHooks []PostResponseHook // functions that are ran after the response is received
 	authenticator Authenticator      // authenticator that is used to authenticate each request
 	host          *url.URL           // the host url that is used for all requests
@@ -122,6 +125,28 @@ func WithHost(host *url.URL) Option {
 	}
 }
 
+// WithRetryHook sets a function that is called after the response is received
+// it decides whether to retry the request based on the response. You have to
+// implement this hook yourself. The pkg provides a basic NoopRetryHook that
+// will never perform a retry.
+func WithRetryHook(hook RetryHook) Option {
+	return func(c *client) *client {
+		c.retryHook = hook
+		return c
+	}
+}
+
+// WithBackoff sets a function that returns a new instance of a `Backoff`
+// implementation on each new request. The pkg provides basic backoff mechanisms
+// you can use. If you want to implement your own backoff mechanism you can do
+// so by implementing the `Backoff` interface yourself.
+func WithBackoff(backoff func() Backoff) Option {
+	return func(c *client) *client {
+		c.backoff = backoff
+		return c
+	}
+}
+
 // NewClient creates a new client with the given options. If no options are
 // given sensible defaults are selected.
 func NewClient(opts ...Option) *client {
@@ -133,10 +158,12 @@ func NewClient(opts ...Option) *client {
 			MaxRateLimiterWaitTime: 60 * time.Second,
 		},
 		httpClient:    httpClient,
-		rateLimiter:   nil,                  // no default rate limiter
-		preReqHooks:   []PreRequestHook{},   // no default pre request hooks
-		postRespHooks: []PostResponseHook{}, // no default post response hooks
-		authenticator: nil,                  // no default authenticator
+		rateLimiter:   nil,                                        // no default rate limiter
+		preReqHooks:   []PreRequestHook{},                         // no default pre request hooks
+		retryHook:     NoopRetryHook,                              // by default never retry anything
+		backoff:       func() Backoff { return NewNoopBackoff() }, // default backoff implementation is an exponential backoff with defensive values
+		postRespHooks: []PostResponseHook{},                       // no default post response hooks
+		authenticator: nil,                                        // no default authenticator
 	}
 
 	// apply the given options
@@ -147,9 +174,9 @@ func NewClient(opts ...Option) *client {
 	return c
 }
 
-func (c *client) Do(r *http.Request) (*http.Response, error) {
+func (c *client) Do(req *http.Request) (*http.Response, error) {
 	// first the get the context from the request so we operate on the same
-	ctx := r.Context()
+	ctx := req.Context()
 
 	// if a rate limiter is set we got to wait for allowance. Run the
 	// ratelimiter before everything else because of there is no free token we
@@ -181,11 +208,11 @@ func (c *client) Do(r *http.Request) (*http.Response, error) {
 	// run all the pre request hooks
 	if c.preReqHooks == nil {
 		for _, hook := range c.preReqHooks {
-			err := hook(r)
+			err := hook(req)
 			if err != nil {
 				return &http.Response{}, RequestError{
 					Err:     fmt.Errorf("error running pre request hook: %w", err),
-					Request: r,
+					Request: req,
 				}
 			}
 		}
@@ -193,27 +220,49 @@ func (c *client) Do(r *http.Request) (*http.Response, error) {
 
 	// authenticate the request
 	if c.authenticator != nil {
-		err := c.authenticator.Authenticate(r)
+		err := c.authenticator.Authenticate(req)
 		if err != nil {
 			return nil, RequestError{
 				Err:     fmt.Errorf("error authenticating request: %w", err),
-				Request: r,
+				Request: req,
 			}
 		}
 	}
 
 	// set the host
 	if c.host != nil {
-		r.URL.Scheme = c.host.Scheme
-		r.URL.Host = c.host.Host
+		req.URL.Scheme = c.host.Scheme
+		req.URL.Host = c.host.Host
 	}
 
-	// finally perform the request
-	res, err := c.httpClient.Do(r)
+	// now execute the request
+	res, err := c.execute(req)
 	if err != nil {
-		return nil, RequestError{
-			Err:     fmt.Errorf("error performing request: %w", err),
-			Request: r,
+		return res, fmt.Errorf("error executing request: %w", err)
+	}
+
+	// handle all retry operations
+	if c.retryHook != nil {
+		// create a new backoff instance for this request
+		bo := c.backoff()
+
+		// check if the retry hook wants to perform a retry
+		var retryRes *http.Response
+		retryRes = res // to clarify we are checking the overwritten retry here
+		for c.retryHook(retryRes) {
+			// want to perform a retry so check the backoff implementation if
+			// a retry is still possible
+			t, ok := bo.Backoff()
+			if !ok {
+				return res, fmt.Errorf("max retries reached")
+			}
+
+			// wait for the backoff deadline
+			<-time.After(t)
+			retryRes, err = c.execute(req)
+			if err != nil {
+				return res, fmt.Errorf("error executing request: %w", err)
+			}
 		}
 	}
 
@@ -227,6 +276,19 @@ func (c *client) Do(r *http.Request) (*http.Response, error) {
 					Response: res,
 				}
 			}
+		}
+	}
+
+	return res, nil
+}
+
+func (c *client) execute(r *http.Request) (*http.Response, error) {
+	// finally perform the request
+	res, err := c.httpClient.Do(r)
+	if err != nil {
+		return nil, RequestError{
+			Err:     fmt.Errorf("error making http request: %w", err),
+			Request: r,
 		}
 	}
 
