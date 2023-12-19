@@ -57,7 +57,7 @@ func TestBasicRequest(t *testing.T) {
 	if err != nil {
 		t.Errorf("unexpected error: %s", err)
 	}
-
+	
 	res, err := client.Do(req)
 	if err != nil {
 		t.Errorf("unexpected error: %s", err)
