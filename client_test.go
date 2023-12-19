@@ -210,11 +210,11 @@ func TestRetryHookMakeRetry(t *testing.T) {
 	client := lazyhttp.NewClient(
 		lazyhttp.WithHost(addr),
 		// the retry hook looks for a status code of 503 and will return when found
-		lazyhttp.WithRetryHook(func(res *http.Response) bool {
+		lazyhttp.WithRetryPolicy(func(res *http.Response) bool {
 			return res.StatusCode == http.StatusServiceUnavailable
 		}),
 		// the backoff implementation will wait 25ms between each retry and will try 5 times
-		lazyhttp.WithBackoff(func() lazyhttp.Backoff {
+		lazyhttp.WithBackoffPolicy(func() lazyhttp.Backoff {
 			return lazyhttp.NewLimitedTriesBackoff(250*time.Millisecond, expectedTries)
 		}),
 	)

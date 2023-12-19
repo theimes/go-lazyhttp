@@ -21,6 +21,12 @@
 
 package lazyhttp
 
+// What do we need?
+// - Authentication
+// - Rate Limiting
+// - Programmable Retries per client instance
+// - Backoff functionality (with different Backoff options)
+
 // TODO:
 // - add custom errors where fmt.Errof is returned
 // - see if the behavioural error pattern is useful for retries
@@ -60,9 +66,9 @@ type Option func(*client) *client
 // can alter the request before the request is made.
 type PreRequestHook func(*http.Request) error
 
-// RetryHook is a function that is called after the response is received. It
+// RetryPolicy is a function that is called after the response is received. It
 // decides if the request should be retried or not.
-type RetryHook func(*http.Response) bool
+type RetryPolicy func(*http.Response) bool
 
 // PostResponseHook is a function that is called after the response is received.
 // It can alter the response before it is returned.
@@ -77,8 +83,8 @@ type client struct {
 	httpClient    *http.Client       // the underlying http client, this can be configured
 	rateLimiter   RateLimiter        // the rate limiter, this can be configured
 	preReqHooks   []PreRequestHook   // functions that are ran before the request is made
-	retryHook     RetryHook          // function that is ran after the response is received to decide if the request should be retried
-	backoff       func() Backoff     // a function that returns a new instance of a backoff implementation
+	retryPolicy   RetryPolicy        // function that is ran after the response is received to decide if the request should be retried
+	backoffPolicy func() Backoff     // a function that returns a new instance of a backoff implementation
 	postRespHooks []PostResponseHook // functions that are ran after the response is received
 	authenticator Authenticator      // authenticator that is used to authenticate each request
 	host          *url.URL           // the host url that is used for all requests
@@ -133,24 +139,24 @@ func WithHost(host *url.URL) Option {
 	}
 }
 
-// WithRetryHook sets a function that is called after the response is received
+// WithRetryPolicy sets a function that is called after the response is received
 // it decides whether to retry the request based on the response. You have to
 // implement this hook yourself. The pkg provides a basic NoopRetryHook that
 // will never perform a retry.
-func WithRetryHook(hook RetryHook) Option {
+func WithRetryPolicy(hook RetryPolicy) Option {
 	return func(c *client) *client {
-		c.retryHook = hook
+		c.retryPolicy = hook
 		return c
 	}
 }
 
-// WithBackoff sets a function that returns a new instance of a `Backoff`
+// WithBackoffPolicy sets a function that returns a new instance of a `Backoff`
 // implementation on each new request. The pkg provides basic backoff mechanisms
 // you can use. If you want to implement your own backoff mechanism you can do
 // so by implementing the `Backoff` interface yourself.
-func WithBackoff(backoff func() Backoff) Option {
+func WithBackoffPolicy(backoff func() Backoff) Option {
 	return func(c *client) *client {
-		c.backoff = backoff
+		c.backoffPolicy = backoff
 		return c
 	}
 }
@@ -168,8 +174,8 @@ func NewClient(opts ...Option) *client {
 		httpClient:    httpClient,
 		rateLimiter:   nil,                                        // no default rate limiter
 		preReqHooks:   []PreRequestHook{},                         // no default pre request hooks
-		retryHook:     nil,                                        // by default never retry anything
-		backoff:       func() Backoff { return NewNoopBackoff() }, // default backoff implementation is an exponential backoff with defensive values
+		retryPolicy:   nil,                                        // by default never retry anything
+		backoffPolicy: func() Backoff { return NewNoopBackoff() }, // default backoff implementation is an exponential backoff with defensive values
 		postRespHooks: []PostResponseHook{},                       // no default post response hooks
 		authenticator: nil,                                        // no default authenticator
 	}
@@ -248,12 +254,12 @@ func (c *client) Do(req *http.Request) (*http.Response, error) {
 	}
 
 	// handle all retry operations
-	if c.retryHook != nil {
+	if c.retryPolicy != nil {
 		// create a new backoff instance for this request
-		bo := c.backoff()
+		bo := c.backoffPolicy()
 
 		// check if the retry hook wants to perform a retry
-		for c.retryHook(res) {
+		for c.retryPolicy(res) {
 			var err error
 
 			// want to perform a retry so check the backoff implementation if

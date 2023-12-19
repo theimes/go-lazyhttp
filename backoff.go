@@ -24,12 +24,12 @@ func (b *noopBackoffFunc) Backoff() (time.Duration, bool) {
 	return 0, false
 }
 
-type infiniteBackoff struct {
+type constantBackoff struct {
 	base time.Duration
 }
 
-func NewInfiniteBackoff(base time.Duration) *infiniteBackoff {
-	return &infiniteBackoff{
+func NewConstantBackoff(base time.Duration) *constantBackoff {
+	return &constantBackoff{
 		base: base,
 	}
 }
@@ -37,10 +37,11 @@ func NewInfiniteBackoff(base time.Duration) *infiniteBackoff {
 // infiniteBackoff returns an infinite backoff function. The function returned, if
 // called multiple times, will always return the base duration. It will never
 // return false to indicate that the max retries is reached.
-func (b *infiniteBackoff) Backoff() (time.Duration, bool) {
+func (b *constantBackoff) Backoff() (time.Duration, bool) {
 	return b.base, true
 }
 
+// TODO: rework the times a retry happens into the retry policy away from the backoff
 type limitedTriesBackoff struct {
 	base    time.Duration
 	done    int
