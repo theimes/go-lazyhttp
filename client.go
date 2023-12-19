@@ -21,16 +21,6 @@
 
 package lazyhttp
 
-// What do we need?
-// - Authentication
-// - Rate Limiting
-// - Programmable Retries per client instance
-// - Backoff functionality (with different Backoff options)
-
-// TODO:
-// - add custom errors where fmt.Errof is returned
-// - see if the behavioural error pattern is useful for retries
-
 import (
 	"context"
 	"fmt"
