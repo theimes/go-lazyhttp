@@ -29,6 +29,14 @@ import (
 	"time"
 )
 
+type BackoffError struct {
+	Err error
+}
+
+func (e BackoffError) Error() string {
+	return fmt.Sprintf("error backing off: %s", e.Err)
+}
+
 var ErrMaxRetriesReached error = fmt.Errorf("max retries reached")
 
 // Authenticator is an interface that can be implemented to authenticate a given
@@ -69,15 +77,15 @@ type Config struct {
 }
 
 type client struct {
-	conf          Config
-	httpClient    *http.Client       // the underlying http client, this can be configured
-	rateLimiter   RateLimiter        // the rate limiter, this can be configured
-	preReqHooks   []PreRequestHook   // functions that are ran before the request is made
-	retryPolicy   RetryPolicy        // function that is ran after the response is received to decide if the request should be retried
+	conf             Config
+	httpClient       *http.Client       // the underlying http client, this can be configured
+	rateLimiter      RateLimiter        // the rate limiter, this can be configured
+	preReqHooks      []PreRequestHook   // functions that are ran before the request is made
+	retryPolicy      RetryPolicy        // function that is ran after the response is received to decide if the request should be retried
 	newBackoffPolicy func() Backoff     // a function that returns a new instance of a backoff implementation
-	postRespHooks []PostResponseHook // functions that are ran after the response is received
-	authenticator Authenticator      // authenticator that is used to authenticate each request
-	host          *url.URL           // the host url that is used for all requests
+	postRespHooks    []PostResponseHook // functions that are ran after the response is received
+	authenticator    Authenticator      // authenticator that is used to authenticate each request
+	host             *url.URL           // the host url that is used for all requests
 }
 
 func WithHttpClient(httpClient *http.Client) Option {
@@ -161,13 +169,13 @@ func NewClient(opts ...Option) *client {
 		conf: Config{
 			MaxRateLimiterWaitTime: 60 * time.Second,
 		},
-		httpClient:    httpClient,
-		rateLimiter:   nil,                                        // no default rate limiter
-		preReqHooks:   []PreRequestHook{},                         // no default pre request hooks
-		retryPolicy:   nil,                                        // by default never retry anything
+		httpClient:       httpClient,
+		rateLimiter:      nil,                                        // no default rate limiter
+		preReqHooks:      []PreRequestHook{},                         // no default pre request hooks
+		retryPolicy:      nil,                                        // by default never retry anything
 		newBackoffPolicy: func() Backoff { return NewNoopBackoff() }, // default backoff implementation is an exponential backoff with defensive values
-		postRespHooks: []PostResponseHook{},                       // no default post response hooks
-		authenticator: nil,                                        // no default authenticator
+		postRespHooks:    []PostResponseHook{},                       // no default post response hooks
+		authenticator:    nil,                                        // no default authenticator
 	}
 
 	// apply the given options
@@ -243,9 +251,12 @@ func (c *client) Do(req *http.Request) (*http.Response, error) {
 	}
 
 	// now execute the request
-	res, err := c.execute(req)
+	res, err := c.httpClient.Do(req)
 	if err != nil {
-		return res, fmt.Errorf("error executing request: %w", err)
+		return nil, RequestError{
+			Err:     fmt.Errorf("error making http request: %w", err),
+			Request: req,
+		}
 	}
 
 	// handle all retry operations
@@ -261,7 +272,9 @@ func (c *client) Do(req *http.Request) (*http.Response, error) {
 			// a retry is still possible
 			t, ok := bop.Backoff()
 			if !ok {
-				return res, fmt.Errorf("error backing off from request: %w", err)
+				return res, BackoffError{
+					Err: fmt.Errorf("error backing off: %w", err),
+				}
 			}
 
 			// wait for the backoff deadline
@@ -276,18 +289,23 @@ func (c *client) Do(req *http.Request) (*http.Response, error) {
 					// a sleep.
 					select {
 					case <-ctx.Done():
-						return res, fmt.Errorf("request context done")
+						return res, ctx.Err()
 					case <-timer.C:
 						// now execute the request without all prior hooks etc.
 						// because we already did that.
-						res, err = c.execute(req)
+						res, err = c.httpClient.Do(req)
 						if err != nil {
-							return res, fmt.Errorf("error executing request: %w", err)
+							return nil, RequestError{
+								Err:     fmt.Errorf("error making http request: %w", err),
+								Request: req,
+							}
 						}
 
 						// stop the timer because we got our one tick
 						timer.Stop()
-					
+
+						// return from the inner function and overwrite the
+						// existing response object.
 						return res, nil
 					}
 				}
@@ -305,19 +323,6 @@ func (c *client) Do(req *http.Request) (*http.Response, error) {
 					Response: res,
 				}
 			}
-		}
-	}
-
-	return res, nil
-}
-
-func (c *client) execute(r *http.Request) (*http.Response, error) {
-	// finally perform the request
-	res, err := c.httpClient.Do(r)
-	if err != nil {
-		return nil, RequestError{
-			Err:     fmt.Errorf("error making http request: %w", err),
-			Request: r,
 		}
 	}
 
