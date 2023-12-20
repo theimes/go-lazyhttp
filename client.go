@@ -74,7 +74,7 @@ type client struct {
 	rateLimiter   RateLimiter        // the rate limiter, this can be configured
 	preReqHooks   []PreRequestHook   // functions that are ran before the request is made
 	retryPolicy   RetryPolicy        // function that is ran after the response is received to decide if the request should be retried
-	backoffPolicy func() Backoff     // a function that returns a new instance of a backoff implementation
+	newBackoffPolicy func() Backoff     // a function that returns a new instance of a backoff implementation
 	postRespHooks []PostResponseHook // functions that are ran after the response is received
 	authenticator Authenticator      // authenticator that is used to authenticate each request
 	host          *url.URL           // the host url that is used for all requests
@@ -146,7 +146,7 @@ func WithRetryPolicy(hook RetryPolicy) Option {
 // so by implementing the `Backoff` interface yourself.
 func WithBackoffPolicy(backoff func() Backoff) Option {
 	return func(c *client) *client {
-		c.backoffPolicy = backoff
+		c.newBackoffPolicy = backoff
 		return c
 	}
 }
@@ -165,7 +165,7 @@ func NewClient(opts ...Option) *client {
 		rateLimiter:   nil,                                        // no default rate limiter
 		preReqHooks:   []PreRequestHook{},                         // no default pre request hooks
 		retryPolicy:   nil,                                        // by default never retry anything
-		backoffPolicy: func() Backoff { return NewNoopBackoff() }, // default backoff implementation is an exponential backoff with defensive values
+		newBackoffPolicy: func() Backoff { return NewNoopBackoff() }, // default backoff implementation is an exponential backoff with defensive values
 		postRespHooks: []PostResponseHook{},                       // no default post response hooks
 		authenticator: nil,                                        // no default authenticator
 	}
@@ -251,7 +251,7 @@ func (c *client) Do(req *http.Request) (*http.Response, error) {
 	// handle all retry operations
 	if c.retryPolicy != nil {
 		// create a new backoff instance for this request
-		bo := c.backoffPolicy()
+		bop := c.newBackoffPolicy()
 
 		// check if the retry hook wants to perform a retry
 		for c.retryPolicy(res) {
@@ -259,7 +259,7 @@ func (c *client) Do(req *http.Request) (*http.Response, error) {
 
 			// want to perform a retry so check the backoff implementation if
 			// a retry is still possible
-			t, ok := bo.Backoff()
+			t, ok := bop.Backoff()
 			if !ok {
 				return res, fmt.Errorf("error backing off from request: %w", err)
 			}
@@ -275,11 +275,15 @@ func (c *client) Do(req *http.Request) (*http.Response, error) {
 					case <-ctx.Done():
 						return res, fmt.Errorf("request context done")
 					case <-timer.C:
+						// now execute the request without all prior hooks etc.
+						// because we already did that.
 						res, err = c.execute(req)
 						if err != nil {
 							return res, fmt.Errorf("error executing request: %w", err)
 						}
+						// TODO: check this timer behaviour
 						timer.Stop()
+					
 						return res, nil
 					}
 				}

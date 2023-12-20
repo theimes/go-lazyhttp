@@ -24,7 +24,7 @@ client := lazyhttp.NewClient(
 )
 
 // create a new request with a given context
-req, err := lazyhttp.NewRequestWithContext(contex.TODO(), http.MethodGet, "/test")
+req, err := http.NewRequestWithContext(contex.TODO(), http.MethodGet, "/test", nil)
 if err != nil {
 	log.Errorf("error creating new request: %#v", err)
 	return 
