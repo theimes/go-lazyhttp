@@ -271,6 +271,9 @@ func (c *client) Do(req *http.Request) (*http.Response, error) {
 			// we received a response from the request.
 			res, err = func(res *http.Response) (*http.Response, error) {
 				for {
+					// we are using a timer so we are able to concurrently listen
+					// on the context and the timer. This is not possible with
+					// a sleep.
 					select {
 					case <-ctx.Done():
 						return res, fmt.Errorf("request context done")
@@ -281,7 +284,8 @@ func (c *client) Do(req *http.Request) (*http.Response, error) {
 						if err != nil {
 							return res, fmt.Errorf("error executing request: %w", err)
 						}
-						// TODO: check this timer behaviour
+
+						// stop the timer because we got our one tick
 						timer.Stop()
 					
 						return res, nil
