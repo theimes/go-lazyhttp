@@ -233,8 +233,13 @@ func (c *client) Do(req *http.Request) (*http.Response, error) {
 
 	// set the host
 	if c.host != nil {
-		req.URL.Scheme = c.host.Scheme
-		req.URL.Host = c.host.Host
+		if req.URL.Scheme == "" {
+			req.URL.Scheme = c.host.Scheme
+		}
+
+		if req.URL.Host == "" {
+			req.URL.Host = c.host.Host
+		}
 	}
 
 	// now execute the request

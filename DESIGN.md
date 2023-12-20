@@ -2,7 +2,9 @@
 
 Describing the design goals and keeping track of TODOs.
 
+
 ## What do we need?
+
  - testable, stable code that is using the go stdlib (or extensions) without dependencies
  - Authentication (various types that alter the request or perform pre request authentication)
  - Rate Limiting (limit the outgoing requests based on a token bucket)
@@ -11,12 +13,12 @@ Describing the design goals and keeping track of TODOs.
  - post response hooks for metrics
  - pre request hooks for altering requests by adding headers etc.
 
+
 ### Maybe?
+
 - Plugin system to alter the behaviour of the client?
 
 
  ## TODO:
  - [ ] add custom errors where fmt.Errof is returned
  - [ ] see if the behavioural error pattern is useful for retries
- - [ ] pull retry count from the backoff into the retry policy to make it more understandable and shift responsibility to the retry policy
- - [ ] If Backoff or not should be decided by the retry policy, add an additional return value for indicating if a retry should run into a backoff
