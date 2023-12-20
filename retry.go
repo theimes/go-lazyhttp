@@ -6,5 +6,3 @@ import "net/http"
 func NoopRetryHook(resp *http.Response) bool {
 	return false
 }
-
-// TODO: implement amount of retries

@@ -53,7 +53,7 @@ func TestBasicRequest(t *testing.T) {
 		t.Errorf("unexpected error: %s", err)
 	}
 
-	req, err := lazyhttp.NewRequestWithContext(ctx, http.MethodGet, addr.String())
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, addr.String(), nil)
 	if err != nil {
 		t.Errorf("unexpected error: %s", err)
 	}
@@ -113,7 +113,7 @@ func TestWithHost(t *testing.T) {
 	// test code starts here
 	client := lazyhttp.NewClient(lazyhttp.WithHost(addr))
 
-	req, err := lazyhttp.NewRequestWithContext(ctx, http.MethodGet, "/some/path/")
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "/some/path/", nil)
 	if err != nil {
 		t.Errorf("unexpected error: %s", err)
 	}

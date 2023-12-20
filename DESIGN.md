@@ -19,3 +19,4 @@ Describing the design goals and keeping track of TODOs.
  - [ ] add custom errors where fmt.Errof is returned
  - [ ] see if the behavioural error pattern is useful for retries
  - [ ] pull retry count from the backoff into the retry policy to make it more understandable and shift responsibility to the retry policy
+ - [ ] If Backoff or not should be decided by the retry policy, add an additional return value for indicating if a retry should run into a backoff
