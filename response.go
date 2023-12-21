@@ -6,6 +6,14 @@ import (
 	"io"
 )
 
+func NoopBodyCloser(rc io.ReadCloser) {
+	// close the body
+	defer rc.Close()
+	
+	// discard the body
+	_, _ = io.Copy(io.Discard, rc)
+}
+
 // DecodeBytes reads from the given reader and returns the content as a []byte.
 // To limit the number of bytes read, use the io.LimitReader type to wrap the
 // reader.
