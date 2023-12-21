@@ -232,8 +232,8 @@ func (c *client) Do(req *http.Request) (*http.Response, error) {
 	if c.authenticator != nil {
 		err := c.authenticator.Authenticate(req)
 		if err != nil {
-			return nil, RequestError{ // TODO: authentication error
-				Err:     fmt.Errorf("error authenticating request: %w", err),
+			return nil, AuthenticationError{
+				Err:     err,
 				Request: req,
 			}
 		}

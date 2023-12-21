@@ -33,3 +33,12 @@ type ResponseError struct {
 func (e ResponseError) Error() string {
 	return fmt.Sprintf("error handling response: %s", e.Err.Error())
 }
+
+type AuthenticationError struct {
+	Err     error
+	Request *http.Request
+}
+
+func (e AuthenticationError) Error() string {
+	return fmt.Sprintf("error authenticating request: %s", e.Err.Error())
+}
