@@ -159,9 +159,9 @@ func WithBackoffPolicy(backoff func() Backoff) Option {
 	}
 }
 
-// NewClient creates a new client with the given options. If no options are
+// New creates a new client with the given options. If no options are
 // given sensible defaults are selected.
-func NewClient(opts ...Option) *client {
+func New(opts ...Option) *client {
 	httpClient := http.DefaultClient      // go's default http client is also our default
 	httpClient.Timeout = 30 * time.Second // this is our sensible default for timeouts
 
@@ -173,7 +173,7 @@ func NewClient(opts ...Option) *client {
 		rateLimiter:      nil,                                        // no default rate limiter
 		preReqHooks:      []PreRequestHook{},                         // no default pre request hooks
 		retryPolicy:      nil,                                        // by default never retry anything
-		newBackoffPolicy: func() Backoff { return NewNoopBackoff() }, // default backoff implementation is an exponential backoff with defensive values
+		newBackoffPolicy: func() Backoff { return NewNoopBackoff() }, // default backoff implementation is a non operative backoff
 		postRespHooks:    []PostResponseHook{},                       // no default post response hooks
 		authenticator:    nil,                                        // no default authenticator
 	}
@@ -232,7 +232,7 @@ func (c *client) Do(req *http.Request) (*http.Response, error) {
 	if c.authenticator != nil {
 		err := c.authenticator.Authenticate(req)
 		if err != nil {
-			return nil, RequestError{
+			return nil, RequestError{ // TODO: authentication error
 				Err:     fmt.Errorf("error authenticating request: %w", err),
 				Request: req,
 			}
@@ -254,7 +254,7 @@ func (c *client) Do(req *http.Request) (*http.Response, error) {
 	res, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, RequestError{
-			Err:     fmt.Errorf("error making http request: %w", err),
+			Err:     err,
 			Request: req,
 		}
 	}
@@ -291,6 +291,8 @@ func (c *client) Do(req *http.Request) (*http.Response, error) {
 					case <-ctx.Done():
 						return res, ctx.Err()
 					case <-timer.C:
+						// TODO: timeout? memory leak?
+						// TODO: retry authentication etc?
 						// now execute the request without all prior hooks etc.
 						// because we already did that.
 						res, err = c.httpClient.Do(req)

@@ -18,7 +18,7 @@ httpClient := http.DefaultClient
 httpClient.Timeout = 30 * time.Second
 
 // create a new lazyhttp client
-client := lazyhttp.NewClient(
+client := lazyhttp.New(
 	lazyhttp.WithHost("http://localhost:8080/"),
 	lazyhttp.WithHttpClient(httpClient),
 )

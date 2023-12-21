@@ -44,7 +44,7 @@ func TestBasicRequest(t *testing.T) {
 	httpClient.Timeout = 30 * time.Second
 
 	// test code starts here
-	client := lazyhttp.NewClient(
+	client := lazyhttp.New(
 		lazyhttp.WithHttpClient(httpClient),
 	)
 
@@ -111,7 +111,7 @@ func TestWithHost(t *testing.T) {
 	}
 
 	// test code starts here
-	client := lazyhttp.NewClient(lazyhttp.WithHost(addr))
+	client := lazyhttp.New(lazyhttp.WithHost(addr))
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "/some/path/", nil)
 	if err != nil {
@@ -207,7 +207,7 @@ func TestRetryHookMakeRetry(t *testing.T) {
 		return
 	}
 
-	client := lazyhttp.NewClient(
+	client := lazyhttp.New(
 		lazyhttp.WithHost(addr),
 		// the retry hook looks for a status code of 503 and will return when found
 		lazyhttp.WithRetryPolicy(func(res *http.Response) bool {
@@ -295,7 +295,7 @@ func TestAuthenticate(t *testing.T) {
 		return
 	}
 
-	client := lazyhttp.NewClient(
+	client := lazyhttp.New(
 		lazyhttp.WithHost(addr),
 		lazyhttp.WithAuthenticator(&testAuthenticator{
 			user: "test",
@@ -354,7 +354,7 @@ func TestPreRequestHooks(t *testing.T) {
 	collector := bytes.NewBuffer([]byte{})
 	dumpSize := 0
 
-	client := lazyhttp.NewClient(
+	client := lazyhttp.New(
 		lazyhttp.WithHost(addr),
 		lazyhttp.WithPreRequestHooks(func(req *http.Request) error {
 			dump, err := httputil.DumpRequest(req, true)
@@ -444,7 +444,7 @@ func TestPostResponseHooks(t *testing.T) {
 	collector := bytes.NewBuffer([]byte{})
 	dumpSize := 0
 
-	client := lazyhttp.NewClient(
+	client := lazyhttp.New(
 		lazyhttp.WithHost(addr),
 		lazyhttp.WithPostResponseHooks(func(res *http.Response) error {
 			dump, err := httputil.DumpResponse(res, true)
@@ -536,7 +536,7 @@ func TestRateLimiter(t *testing.T) {
 		return
 	}
 
-	client := lazyhttp.NewClient(
+	client := lazyhttp.New(
 		lazyhttp.WithHost(addr),
 		lazyhttp.WithRateLimiter(ratelimit.NewTokenBucketRateLimiter(*time.NewTicker(50 * time.Millisecond), 1, 100*time.Millisecond)),
 		lazyhttp.WithMaxRateLimiterWaitTime(250*time.Millisecond),

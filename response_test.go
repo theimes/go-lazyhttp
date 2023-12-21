@@ -109,7 +109,7 @@ func TestDecodeJsonFromResponse(t *testing.T) {
 		return
 	}
 
-	c := lazyhttp.NewClient(lazyhttp.WithHost(addr))
+	c := lazyhttp.New(lazyhttp.WithHost(addr))
 
 	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
 	if err != nil {

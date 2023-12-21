@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	COUNT = 100 // how many requests to send in a single benchmark
+	COUNT = 50 // how many requests to send in a single benchmark
 )
 
 func startServer(b *testing.B) *httptest.Server {
@@ -106,7 +106,7 @@ func BenchmarkClient(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 		// benchmark code starts here
-		client := lazyhttp.NewClient(
+		client := lazyhttp.New(
 			lazyhttp.WithHost(addr),
 			lazyhttp.WithHttpClient(httpClient),
 		)
@@ -169,7 +169,7 @@ func BenchmarkClientComplex(b *testing.B) {
 
 	// benchmark code starts here
 	for i := 0; i < b.N; i++ {
-		client := lazyhttp.NewClient(
+		client := lazyhttp.New(
 			lazyhttp.WithHost(addr),
 			lazyhttp.WithHttpClient(httpClient),
 			lazyhttp.WithRetryPolicy(func(r *http.Response) bool {
