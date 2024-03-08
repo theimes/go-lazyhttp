@@ -57,7 +57,7 @@ func TestBasicRequest(t *testing.T) {
 	if err != nil {
 		t.Errorf("unexpected error: %s", err)
 	}
-	
+
 	res, err := client.Do(req)
 	if err != nil {
 		t.Errorf("unexpected error: %s", err)
@@ -509,6 +509,65 @@ func TestRateLimiter(t *testing.T) {
 
 	ctx, cancel := context.WithDeadline(context.Background(), done)
 	defer cancel()
+
+	requestCount := 0
+	expectedReqCount := 5
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		requestCount += 1
+
+		// t.Logf("request count: %d", requestCount)
+
+		if requestCount >= expectedReqCount {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
+		w.WriteHeader(http.StatusTooManyRequests)
+	})
+
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	addr, err := url.Parse(srv.URL)
+	if err != nil {
+		t.Errorf("did not expect error parsing url: %+v", err)
+		return
+	}
+
+	client := lazyhttp.New(
+		lazyhttp.WithHost(addr),
+		lazyhttp.WithRateLimiter(ratelimit.NewTokenBucketRateLimiter(*time.NewTicker(50 * time.Millisecond), 1, 100*time.Millisecond)),
+		lazyhttp.WithMaxRateLimiterWaitTime(250*time.Millisecond),
+	)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "/", nil)
+	if err != nil {
+		t.Errorf("did not expect error creating request: %+v", err)
+		return
+	}
+
+	for i := 0; i < expectedReqCount; i++ {
+		res, err := client.Do(req)
+		if err != nil {
+			t.Errorf("did not expect error making request: %+v", err)
+		}
+
+		if requestCount < expectedReqCount && res.StatusCode != http.StatusTooManyRequests {
+			t.Errorf("expected status code %d but got: %d", http.StatusTooManyRequests, res.StatusCode)
+		}
+	}
+
+	if requestCount != expectedReqCount {
+		t.Errorf("expected %d requests but got: %d", expectedReqCount, requestCount)
+		return
+	}
+}
+
+func TestRateLimiterWithEmptyContext(t *testing.T) {
+
+	ctx := context.Background()
 
 	requestCount := 0
 	expectedReqCount := 5
