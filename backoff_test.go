@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/niksteff/lazyhttp"
+	"github.com/niksteff/go-lazyhttp"
 )
 
 func TestBackoffIncreases(t *testing.T) {

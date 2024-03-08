@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/niksteff/lazyhttp"
-	"github.com/niksteff/lazyhttp/ratelimit"
+	"github.com/niksteff/go-lazyhttp"
+	"github.com/niksteff/go-lazyhttp/ratelimit"
 )
 
 const (

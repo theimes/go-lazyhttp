@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/niksteff/lazyhttp"
+	"github.com/niksteff/go-lazyhttp"
 )
 
 const (
